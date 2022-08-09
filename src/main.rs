@@ -14,6 +14,13 @@ const BALL_RADIUS: f32 = 6.;
 const BALL_SPEED: f32 = 65.;
 const INIT_BALL_DIRECTION: Vec2 = Vec2::new(-5. * BALL_SPEED, 5. * BALL_SPEED);
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+enum AppState {
+    Menu,
+    InGame,
+    GameOver
+}
+
 fn main() {
     App::new()
         .insert_resource(Msaa {samples: 4})
@@ -25,9 +32,28 @@ fn main() {
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(ShapePlugin)
+        .add_state(AppState::Menu)
         .insert_resource(ClearColor(Color::rgb(0., 0., 0.)))
-        .add_startup_system(setup)
-        .add_system_set(SystemSet::new()
+        .add_system_set(
+            SystemSet::on_enter(
+                AppState::Menu
+                )
+            .with_system(setup)
+            )
+        .add_system_set(
+            SystemSet::on_update(AppState::Menu)
+            .with_system(enter_game)
+            )
+        .add_system_set(
+            SystemSet::on_exit(AppState::Menu)
+            .with_system(cleanup_menu)
+            )
+        .add_system_set(
+            SystemSet::on_enter(AppState::InGame)
+            .with_system(ingame_setup)
+            )
+        // System set update for in game state
+        .add_system_set(SystemSet::on_update(AppState::InGame)
                         .with_system(check_collisions)
                         .with_system(move_paddle.before(check_collisions))
                         .with_system(move_ball.before(check_collisions))
@@ -38,6 +64,8 @@ fn main() {
 }   
 
 /// COMPONENTS
+#[derive(Component)]
+struct MenuText;
 
 // For human paddle
 #[derive(Component)]
@@ -54,14 +82,45 @@ struct Ball;
 struct Velocity(Vec2);
 
 // Setup Game
-fn setup(mut commands: Commands, ) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer> ) {
     // Camera
     commands.spawn_bundle(Camera2dBundle::default()); 
 
+    commands.spawn()
+        .insert(MenuText)
+        .insert_bundle(
+
+        TextBundle::from_sections(
+            [
+            TextSection::new(
+                "Pong", 
+                TextStyle { font: asset_server.load("Nunito-Regular.ttf"), font_size: 60., color: Color::WHITE }),
+            TextSection::new(
+                "Press 'Space' to Play", 
+                TextStyle { font: asset_server.load("Nunito-Regular.ttf"), font_size: 24., color: Color::WHITE })
+        
+            ]
+            )
+        .with_style(Style {
+            ..default()
+        })
+        );
     // Sound
     // TODO
 
     
+}
+
+// Despawn menu items
+fn cleanup_menu(mut commands: Commands, mut query: Query<Entity, With<MenuText>>) {
+    // Despawn text
+    let mut text = query.single_mut();
+    commands.entity(text).despawn(); 
+}
+
+// InGame setup
+fn ingame_setup(mut commands: Commands, ) {
+
     // Spawn Paddle
     let human_paddle = shapes::Rectangle {
         origin: RectangleOrigin::Center, extents: Vec2::new(PADDLE_WIDTH, SCREEN_HEIGHT / 3.,)
@@ -175,3 +234,13 @@ fn cpu_ai(mut set: ParamSet<(
     }
 }
 
+
+fn enter_game(
+    mut keys: ResMut<Input<KeyCode>>,
+    mut app_state: ResMut<State<AppState>>,
+) {
+    if keys.just_pressed(KeyCode::Space) {
+        app_state.set(AppState::InGame).unwrap();
+        keys.reset(KeyCode::Space);
+    }
+}
