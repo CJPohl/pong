@@ -42,11 +42,12 @@ fn main() {
         .add_event::<ScoreEvent>()
         .add_state(AppState::Menu)
         .insert_resource(ClearColor(Color::rgb(0., 0., 0.)))
+        // Menu
         .add_system_set(SystemSet::on_enter(AppState::Menu).with_system(setup))
         .add_system_set(SystemSet::on_update(AppState::Menu).with_system(enter_game))
         .add_system_set(SystemSet::on_exit(AppState::Menu).with_system(cleanup_menu))
+        // InGame
         .add_system_set(SystemSet::on_enter(AppState::InGame).with_system(ingame_setup))
-        // System set update for in game state
         .add_system_set(
             SystemSet::on_update(AppState::InGame)
                 .with_system(check_collisions)
@@ -56,6 +57,11 @@ fn main() {
                 .with_system(move_ball.before(check_collisions))
                 .with_system(cpu_ai.before(check_collisions)),
         )
+        .add_system_set(SystemSet::on_exit(AppState::InGame).with_system(cleanup_game))
+        // GameOver
+        .add_system_set(SystemSet::on_enter(AppState::GameOver).with_system(setup_gameover))
+        .add_system_set(SystemSet::on_update(AppState::GameOver).with_system(enter_game))
+        .add_system_set(SystemSet::on_exit(AppState::GameOver).with_system(cleanup_menu))
         .add_system(bevy::window::close_on_esc)
         .run();
 }
@@ -92,7 +98,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Camera
     commands.spawn_bundle(Camera2dBundle::default());
 
-    // test
     commands
         .spawn()
         .insert(MenuText)
@@ -390,4 +395,53 @@ fn check_winner(
             app_state.set(AppState::GameOver).unwrap();
         }
     }
+}
+
+fn cleanup_game(mut commands: Commands, mut query: Query<Entity>) {
+    for ent in query.iter_mut() {
+        commands.entity(ent).despawn();
+    }
+}
+
+fn setup_gameover(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.spawn_bundle(Camera2dBundle::default());
+
+    commands
+        .spawn()
+        .insert(MenuText)
+        .insert_bundle(NodeBundle {
+            style: Style {
+                size: Size::new(Val::Percent(100.), Val::Percent(100.)),
+                flex_direction: FlexDirection::ColumnReverse,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            color: UiColor(Color::BLACK),
+            ..default()
+        })
+        .with_children(|parent| {
+            parent
+                .spawn()
+                .insert(MenuText)
+                .insert_bundle(TextBundle::from_section(
+                    "Play Again?",
+                    TextStyle {
+                        font: asset_server.load("OpenSans-Regular.ttf"),
+                        font_size: 60.,
+                        color: Color::WHITE,
+                    },
+                ));
+            parent
+                .spawn()
+                .insert(MenuText)
+                .insert_bundle(TextBundle::from_section(
+                    "Press 'Space' to Play",
+                    TextStyle {
+                        font: asset_server.load("OpenSans-Regular.ttf"),
+                        font_size: 24.,
+                        color: Color::WHITE,
+                    },
+                ));
+        });
 }
